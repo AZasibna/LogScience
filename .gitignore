@@ -1,0 +1,6 @@
+#txt-files
+*.txt
+/test-output
+/target
+*configuration.properties
+

@@ -1,0 +1,60 @@
+version: 2
+jobs:
+  build:
+
+    # directory where steps will run
+    working_directory: ~/working_dir
+
+    # user pre-build docker image
+    docker:
+      # ... with Java & firefox/chrome browsers pre-installed
+      - image: circleci/openjdk:8-jdk-browsers
+
+    steps:
+      # pull this branch
+      - checkout
+
+      # using maven allows each project to specify any deps they may not have in common (eg Selenium versions, etc)
+      - run:
+          name: get maven dependancies
+          command: mvn dependency:go-offline
+
+      # make chromedriver executable
+      - run:
+          name: set chromedriver permission
+          command: chmod +x resource/chromedriver
+
+      # run tests, by specifying a TestNG xml in env var, which defines the test suite (to be consumed by surefire plugin) - TODO add logic to run a default suite if not defined in env var
+      - run:
+          name: run tests
+          command: mvn test -DTESTSCIENCE_ORG_INSTANCE_URL=$TESTSCIENCE_ORG_INSTANCE_URL -DTESTSCIENCE_SYSADMIN_USERNAME=$TESTSCIENCE_SYSADMIN_USERNAME -DTESTSCIENCE_SYSADMIN_PASSWORD=$TESTSCIENCE_SYSADMIN_PASSWORD -DTESTSCIENCE_SYSADMIN_SECURITY_TOKEN=$TESTSCIENCE_SYSADMIN_SECURITY_TOKEN
+
+      # store test results
+      - run:
+          name: store test results
+          command: |
+            mkdir -p ~/test-results/
+            cp -pr target/surefire-reports ~/test-results/
+          when: always
+      - store_test_results:
+          path: ~/test-results
+      - store_artifacts:
+          path: ~/test-results 
+
+
+workflows:
+  version: 2
+  test-build:
+    jobs:
+      - build
+  build-on-schedule:
+    triggers:
+      - schedule:
+          # cron format: min (0-59) hour (0-23) monthday (1-31) month (1-12) weekday (0-6, 0=Sun)
+          cron: "0 0 * * 0"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - build
